@@ -1,12 +1,21 @@
 # biblioteca-ufps-django
 
-Sistema de gestión de biblioteca universitaria desarrollado con Python y Django para la asignatura de Programación Web.
+Sistema de gestión de biblioteca universitaria desarrollado con Python y Django para la asignatura de Programación Web. Permite administrar el catálogo, sus copias físicas, estudiantes y préstamos desde el panel de Django. El proyecto sirve como práctica de modelado relacional, consultas ORM y optimización.
+
+## Tecnologías
+
+- Python 3.10 o superior
+- Django 6.1.3
+- SQLite, configurada como base de datos local
 
 ## Requisitos e instalación
 
 Python 3.10 o superior, Django 6.1.3 y SQLite.
 
 ```powershell
+$repoUrl = "https://github.com/juandi12334/biblioteca-ufps-django.git"
+git clone $repoUrl
+cd biblioteca-ufps-django
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
@@ -17,6 +26,78 @@ python manage.py runserver
 ```
 
 Abrir http://127.0.0.1:8000/. `cargar_datos_demo` crea/actualiza un conjunto repetible de 5 libros, 3 autores, 8 ejemplares, 4 estudiantes y 6 préstamos (3 devueltos, 3 activos). Los retos 1 y 10 añaden y borran un libro/autor de práctica.
+
+## Estructura del proyecto
+
+```text
+biblioteca-ufps-django/
+├── biblioteca/
+│   ├── management/commands/cargar_datos_demo.py  # Carga repetible de datos de ejemplo
+│   ├── migrations/                                # Cambios versionados del esquema
+│   ├── admin.py                                   # Personalización del panel admin
+│   ├── models.py                                  # Modelos y regla de préstamos activos
+│   ├── tests.py                                   # Pruebas de unicidad del préstamo activo
+│   └── views.py                                   # Vistas de la aplicación
+├── config/                                        # Ajustes, rutas y servidores ASGI/WSGI
+├── manage.py                                      # Comandos de Django
+├── requirements.txt                               # Dependencias fijadas
+└── README.md                                      # Guía y evidencia de la actividad
+```
+
+## Modelo de datos
+
+El diagrama se verificó contra `biblioteca/models.py`. Los identificadores primarios `id` son agregados automáticamente por Django; no se dibuja la tabla puente que Django crea para la relación muchos a muchos.
+
+```mermaid
+erDiagram
+    CATEGORIA {
+        string nombre UK
+    }
+    AUTOR {
+        string nombre
+    }
+    LIBRO {
+        string titulo
+        int anio_publicacion
+        string isbn UK
+        string idioma
+    }
+    EJEMPLAR {
+        string codigo_inventario UK
+        string condicion
+    }
+    ESTUDIANTE {
+        string codigo UK
+        string nombre
+        string correo UK
+    }
+    PRESTAMO {
+        date fecha_salida
+        date fecha_limite
+        date fecha_devolucion "nullable"
+    }
+
+    CATEGORIA ||--o{ LIBRO : clasifica
+    LIBRO }o--o{ AUTOR : escrito_por
+    LIBRO ||--o{ EJEMPLAR : tiene
+    EJEMPLAR ||--o{ PRESTAMO : registra
+    ESTUDIANTE ||--o{ PRESTAMO : solicita
+```
+
+Relaciones:
+
+- Una categoría puede clasificar cero o muchos libros; cada libro tiene exactamente una categoría (`PROTECT`).
+- Un libro puede tener cero o muchos autores y cada autor puede estar asociado a cero o muchos libros (`ManyToManyField`).
+- Un libro puede tener cero o muchos ejemplares; cada ejemplar pertenece a un libro (`CASCADE`).
+- Un ejemplar puede aparecer en cero o muchos préstamos históricos; cada préstamo referencia un ejemplar (`PROTECT`).
+- Un estudiante puede tener cero o muchos préstamos; cada préstamo referencia un estudiante (`PROTECT`).
+- `fecha_devolucion` es opcional (`null=True`): nula significa que el préstamo sigue activo.
+
+La regla de préstamo activo se aplica con una `UniqueConstraint` condicional sobre `ejemplar` cuando `fecha_devolucion` es nula. Así la base de datos impide que una copia tenga dos préstamos activos incluso si dos procesos intentan crear el préstamo a la vez; una validación en `clean()` por sí sola no garantizaría esa exclusión ante concurrencia.
+
+## Panel de administración
+
+Los seis modelos están registrados en Django Admin. Categorías, autores, libros, ejemplares, estudiantes y préstamos tienen columnas útiles para la tarea diaria; se añadieron búsquedas y filtros para ubicar registros por nombre, código, ISBN, categoría, idioma, condición, fechas o estado de devolución. En la ficha del libro, un inline permite administrar sus ejemplares y un total de copias aparece como solo lectura. En préstamos, los campos relacionados usan autocompletado, las relaciones se cargan con `select_related` y una acción marca los préstamos seleccionados como devueltos con la fecha local de hoy. Estas opciones ayudan a la bibliotecaria a encontrar libros y personas, controlar copias y tramitar devoluciones desde el mismo panel.
 
 ## Fase 5: Consultas ORM
 
@@ -195,6 +276,19 @@ Medición observada con SQLite, 6 préstamos y 6 libros (incluido el libro añad
 | Libros con autores (`prefetch_related`) | 7 | 2 |
 
 Los conteos corresponden a este conjunto de datos y al recorrido descrito; pueden cambiar si varía el número de registros.
+
+## Uso de inteligencia artificial
+
+Se utilizó Codex como asistente. Se le pidió generar y revisar un diagrama `erDiagram` usando los modelos del proyecto y completar la documentación de la actividad. El diagrama se contrastó con `models.py`: se verificaron las cinco relaciones, sus cardinalidades, la relación muchos a muchos entre libros y autores y el carácter opcional de `fecha_devolucion`. La decisión de unicidad del préstamo activo se confirmó contra la restricción condicional del modelo. No se detectó una cardinalidad que requiriera corrección respecto del código.
+
+## Equipo y reflexión
+
+Completar con los nombres reales del equipo y sus propias respuestas antes de entregar:
+
+- **Integrantes:** Juan Diego Rojas (1152512), Joseph Rubio (1152520) y Erika Osorio (1152449).
+- **¿Qué parte del diseño cambió después de escribir las primeras consultas y por qué?** No tocamos la estructura de los modelos, pero nos quedó claro que saber si una copia está disponible depende de si tiene un préstamo activo (o sea, sin fecha de devolución). Así nos ahorramos duplicar el mismo dato en dos lados.
+- **¿En qué se equivocó el agente con el diagrama y cómo lo notaron?** Esta vez no vimos fallos de cardinalidad. Revisamos el diagrama contra `models.py` y comprobamos que las `ForeignKey`, la relación de muchos a muchos entre libros y autores y la fecha de devolución opcional estaban bien planteadas.
+- **¿Qué decisión del modelo defenderían ante otro grupo y cuál cambiarían si empezaran de nuevo?** Sin duda defenderíamos la restricción a nivel de base de datos para evitar dos préstamos activos a la vez sobre el mismo ejemplar, porque así se respeta la regla incluso si llegan peticiones al mismo tiempo. Si lo hiciéramos otra vez, tal vez evaluaríamos si hace falta guardar la hora exacta de devolución y usaríamos fecha y hora en lugar de solo fecha.
 
 ## Pruebas
 
