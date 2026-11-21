@@ -283,8 +283,6 @@ Se utilizó Codex como asistente. Se le pidió generar y revisar un diagrama `er
 
 ## Equipo y reflexión
 
-Completar con los nombres reales del equipo y sus propias respuestas antes de entregar:
-
 - **Integrantes:** Juan Diego Rojas (1152512), Joseph Rubio (1152520) y Erika Osorio (1152449).
 - **¿Qué parte del diseño cambió después de escribir las primeras consultas y por qué?** No tocamos la estructura de los modelos, pero nos quedó claro que saber si una copia está disponible depende de si tiene un préstamo activo (o sea, sin fecha de devolución). Así nos ahorramos duplicar el mismo dato en dos lados.
 - **¿En qué se equivocó el agente con el diagrama y cómo lo notaron?** Esta vez no vimos fallos de cardinalidad. Revisamos el diagrama contra `models.py` y comprobamos que las `ForeignKey`, la relación de muchos a muchos entre libros y autores y la fecha de devolución opcional estaban bien planteadas.
